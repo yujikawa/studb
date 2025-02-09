@@ -1,3 +1,6 @@
+use std::fs::{File, OpenOptions};
+use std::io::{self, Read, Seek, SeekFrom, Write};
+
 const BLOCK_SIZE: usize = 4096;
 
 struct Page {
@@ -35,6 +38,25 @@ impl Page {
         let bytes = &self.data[offset..offset + length];
         String::from_utf8(bytes.to_vec()).unwrap()
     }
+
+    /// ページを指定したファイルに書き込む
+    fn write_to_file(&self, file_name: &str, block_num: u64) -> io::Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(file_name)?;
+        file.seek(SeekFrom::Start(block_num * BLOCK_SIZE as u64))?;
+        file.write_all(&self.data);
+        Ok(())
+    }
+
+    /// ファイルから指定したブロックをページに読み込む
+    fn read_from_file(&mut self, file_name: &str, block_num: u64) -> io::Result<()> {
+        let mut file = OpenOptions::new().read(true).open(file_name)?;
+        file.seek(SeekFrom::Start(block_num * BLOCK_SIZE as u64))?;
+        file.read_exact(&mut self.data)?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -53,16 +75,26 @@ impl BlockId {
     }
 }
 
-fn main() {
-    let block = BlockId::new("testfile.db", 42);
+fn main() -> io::Result<()> {
     let mut page = Page::new();
-    page.set_int(0, 12345);
-    page.set_string(4, "Hello world");
 
-    let read_value = page.get_int(0);
-    let read_string = page.get_string(4, 12);
-    println!("Block ID: {:?}", block);
-    println!("Block ID: {:?}", read_value);
-    println!("Block ID: {:?}", read_string);
-    
+    // ページにデータを書き込み
+    page.set_int(0, 12345);
+    page.set_string(4, "Hello, Rust!");
+
+    // ページをファイルに保存
+    page.write_to_file("testfile.db", 0)?;
+
+    // 別のページオブジェクトにファイルから読み込む
+    let mut read_page = Page::new();
+    read_page.read_from_file("testfile.db", 0)?;
+
+    // データを読み取り
+    let read_value = read_page.get_int(0);
+    let read_string = read_page.get_string(4, 12);
+
+    println!("Read Int: {}", read_value);
+    println!("Read String: {}", read_string);
+
+    Ok(())
 }
