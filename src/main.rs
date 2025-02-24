@@ -1,100 +1,68 @@
-use std::fs::{File, OpenOptions};
-use std::io::{self, Read, Seek, SeekFrom, Write};
+mod constants;
+mod file_manager;
+use file_manager::block_id::BlockId;
+use file_manager::file_manager::FileManager;
+use file_manager::page::Page;
 
-const BLOCK_SIZE: usize = 4096;
-
-struct Page {
-    data: [u8; BLOCK_SIZE],
+fn main() {
+    println!("Hello studb");
 }
 
-impl Page {
-    /// 新しいページを作成する
-    fn new() -> Self {
-        Page {
-            data: [0; BLOCK_SIZE],
-        }
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io;
 
-    /// 指定したオフセットに整数を書き込む
-    fn set_int(&mut self, offset: usize, value: i32) {
-        let bytes = value.to_be_bytes();
-        self.data[offset..offset + 4].copy_from_slice(&bytes);
-    }
+    #[test]
+    fn test_file_write_and_read() -> io::Result<()> {
+        let file_manager = FileManager::new();
+        let file_name = "testfile.studb";
 
-    /// 指定したオフセットから整数を読み取る
-    fn get_int(&mut self, offset: usize) -> i32 {
-        let bytes = &self.data[offset..offset + 4];
-        i32::from_be_bytes(bytes.try_into().unwrap())
-    }
+        // ブロックとページの初期化
+        let mut page = Page::new();
+        let block = BlockId::new(file_name, 0);
 
-    /// 指定したオフセットに文字列を書き込む
-    fn set_string(&mut self, offset: usize, value: &str) {
-        let bytes = value.as_bytes();
-        self.data[offset..offset + bytes.len()].copy_from_slice(bytes);
-    }
+        // データを書き込む
+        let int_value = 12345;
+        let string_value = "Hello, SimpleDB!";
+        page.set_int(0, int_value);
+        page.set_string(4, string_value);
 
-    /// 指定したオフセットから文字列を読み取る(長さを指定する)
-    fn get_string(&mut self, offset: usize, length: usize) -> String {
-        let bytes = &self.data[offset..offset + length];
-        String::from_utf8(bytes.to_vec()).unwrap()
-    }
+        // ファイルに書き込む
+        file_manager.write(&block, &page)?;
 
-    /// ページを指定したファイルに書き込む
-    fn write_to_file(&self, file_name: &str, block_num: u64) -> io::Result<()> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .open(file_name)?;
-        file.seek(SeekFrom::Start(block_num * BLOCK_SIZE as u64))?;
-        file.write_all(&self.data);
+        // 読み込んで検証
+        let mut read_page = Page::new();
+        file_manager.read(&block, &mut read_page)?;
+
+        let read_int = read_page.get_int(0);
+        let read_string = read_page.get_string(4, string_value.len());
+
+        assert_eq!(read_int, int_value, "整数データが一致しません。");
+        assert_eq!(read_string, string_value, "文字列データが一致しません。");
+
         Ok(())
     }
 
-    /// ファイルから指定したブロックをページに読み込む
-    fn read_from_file(&mut self, file_name: &str, block_num: u64) -> io::Result<()> {
-        let mut file = OpenOptions::new().read(true).open(file_name)?;
-        file.seek(SeekFrom::Start(block_num * BLOCK_SIZE as u64))?;
-        file.read_exact(&mut self.data)?;
+    #[test]
+    fn test_append_block() -> io::Result<()> {
+        let file_manager = FileManager::new();
+        let file_name = "testfile.studb";
+
+        // 新しいページを作成してデータをセット
+        let mut new_page = Page::new();
+        new_page.set_int(0, 54321);
+
+        // 新しいブロックを追加
+        let new_block = file_manager.append(file_name, &new_page)?;
+
+        // 読み込んで確認
+        let mut verify_page = Page::new();
+        file_manager.read(&new_block, &mut verify_page)?;
+
+        let verify_int = verify_page.get_int(0);
+        assert_eq!(verify_int, 54321, "追加ブロックのデータが一致しません。");
+
         Ok(())
     }
-}
-
-#[derive(Clone, Debug)]
-struct BlockId {
-    file_name: String,
-    block_num: u64,
-}
-
-impl BlockId {
-    /// 新しいブロックIDを作成する
-    fn new(file_name: &str, block_num: u64) -> Self {
-        BlockId {
-            file_name: file_name.to_string(),
-            block_num: block_num,
-        }
-    }
-}
-
-fn main() -> io::Result<()> {
-    let mut page = Page::new();
-
-    // ページにデータを書き込み
-    page.set_int(0, 12345);
-    page.set_string(4, "Hello, Rust!");
-
-    // ページをファイルに保存
-    page.write_to_file("testfile.db", 0)?;
-
-    // 別のページオブジェクトにファイルから読み込む
-    let mut read_page = Page::new();
-    read_page.read_from_file("testfile.db", 0)?;
-
-    // データを読み取り
-    let read_value = read_page.get_int(0);
-    let read_string = read_page.get_string(4, 12);
-
-    println!("Read Int: {}", read_value);
-    println!("Read String: {}", read_string);
-
-    Ok(())
 }
