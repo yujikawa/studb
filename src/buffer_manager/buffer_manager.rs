@@ -86,6 +86,23 @@ impl BufferManager {
             if is_dirty {
                 frame.is_dirty = true;
             }
+
+            // 参照がなく更新対象ならディスクに書き込み
+            if frame.pin_count == 0 && frame.is_dirty {
+                self.flush_page(block_id);
+            }
+        }
+    }
+
+    pub fn flush_page(&self, block_id: &BlockId) {
+        // ディスクへの書き込み処理
+        let mut pool = self.pool.lock().unwrap();
+        if let Some(frame) = pool.get(block_id) {
+            let mut frame = frame.lock().unwrap();
+            if frame.is_dirty {
+                self.file_manager.write(block_id, &frame.page).unwrap();
+                frame.is_dirty = false;
+            }
         }
     }
 }
