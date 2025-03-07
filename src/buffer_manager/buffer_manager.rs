@@ -21,7 +21,7 @@ impl BufferManager {
         }
     }
 
-    fn evicted_page(&self) -> Option(BlockId) {
+    fn evicted_page(&self) -> Option<BlockId> {
         let mut pool = self.pool.lock().unwrap();
 
         let evicted_block = pool
@@ -47,7 +47,7 @@ impl BufferManager {
 
         // 目的のデータがある場合は使用中に設定してそのBuffer frameを返すだけ
         if let Some(frame) = pool.get(block_id) {
-            frame.lock.unwrap().pin();
+            frame.lock().unwrap().pin();
             return Arc::clone(frame);
         }
 
@@ -55,10 +55,7 @@ impl BufferManager {
             if let Some(evicted_block) = self.evicted_page() {
                 println!("Evicted page {:?}", evicted_block);
             } else {
-                return Err(Error::new(
-                    ErrorKind::Other,
-                    "No pages available for eviction",
-                ));
+                panic!("No pages available for eviction");
             }
         }
 
@@ -137,7 +134,7 @@ mod tests {
         let buffer_frame = buffer_manager.pin_page(&block);
 
         // Mutex のロックを取得
-        let buffer_frame = buffer_frame.lock().unwrap();
+        let mut buffer_frame = buffer_frame.lock().unwrap();
 
         // テスト項目
         assert_eq!(buffer_frame.pin_count, 1, "pinカウントが一致しません");
@@ -154,10 +151,9 @@ mod tests {
         );
 
         // BufferManager にページをアンピンする
-        let buffer_frame = buffer_manager.unpin_page(&block);
+        buffer_manager.unpin_page(&block, false);
 
         // Mutex のロックを取得
-        let buffer_frame = buffer_frame.lock().unwrap();
         assert_eq!(buffer_frame.pin_count, 0, "pinカウントが一致しません");
 
         Ok(())
@@ -166,20 +162,25 @@ mod tests {
     #[test]
     fn test_eviction() -> io::Result<()> {
         // ページの置換テスト
+
         let file_manager = Arc::new(FileManager::new());
         let buffer_manager = BufferManager::new(file_manager.clone());
 
         let file_name = "testfile.studb";
 
         for i in 0..MAX_BUFFER_SIZE {
-            let block = BlockId::new(file_name, i);
-            let _ = buffer_manager.pin_page(&block)?;
+            let block = BlockId::new(file_name, i as u64);
+            let _ = buffer_manager.pin_page(&block);
         }
 
-        let new_block = BlockId::new(file_name, MAX_BUFFER_SIZE);
-        let result = buffer_manager.pin_page(&new_block);
+        let block = BlockId::new(file_name, 0);
+        buffer_manager.unpin_page(&block, false);
 
-        assert_eq!(result.is_ok());
+        let new_block = BlockId::new(file_name, MAX_BUFFER_SIZE as u64);
+        let result = buffer_manager.pin_page(&new_block);
+        println!("b");
+
+        assert_eq!(result.lock().is_ok(), true);
 
         Ok(())
     }

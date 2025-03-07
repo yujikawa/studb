@@ -8,11 +8,11 @@ pub struct LogManager {
 impl LogManager {
     pub fn new(log_filename: &str) -> io::Result<Self> {
         let log_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .append(true)
-        .open(log_filename)?;
+            .read(true)
+            .write(true)
+            .create(true)
+            .append(true)
+            .open(log_filename)?;
 
         Ok(LogManager { log_file })
     }
@@ -35,5 +35,34 @@ impl LogManager {
         }
 
         Ok(logs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_log_manager() {
+        let log_filename = "test_log.studb";
+        let mut log_manager = LogManager::new(log_filename).unwrap();
+
+        log_manager.write_log("BEGIN TRANSACTION").unwrap();
+        log_manager
+            .write_log("UPDATE users SET name='Alice' WHERE id = 1")
+            .unwrap();
+        log_manager.write_log("COMMIT").unwrap();
+
+        let logs = log_manager.read_logs().unwrap();
+        assert_eq!(
+            logs,
+            vec![
+                "BEGIN TRANSACTION",
+                "UPDATE users SET name='Alice' WHERE id = 1",
+                "COMMIT"
+            ]
+        );
+        fs::remove_file(log_filename).unwrap();
     }
 }

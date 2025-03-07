@@ -28,7 +28,7 @@ impl BufferFrame {
         }
     }
 
-    pub fn is_pinned(&self) -> book {
+    pub fn is_pinned(&self) -> bool {
         self.pin_count > 0
     }
 }

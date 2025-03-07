@@ -1,5 +1,7 @@
+mod buffer_manager;
 mod constants;
 mod file_manager;
+mod log_manager;
 use file_manager::block_id::BlockId;
 use file_manager::file_manager::FileManager;
 use file_manager::page::Page;

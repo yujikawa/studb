@@ -1,5 +1,5 @@
 use crate::constants::BLOCK_SIZE;
-
+#[derive(Debug)]
 pub struct Page {
     pub data: [u8; BLOCK_SIZE],
 }
