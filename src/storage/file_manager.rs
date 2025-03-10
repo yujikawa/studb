@@ -21,7 +21,7 @@ impl FileManager {
     pub fn read_block(&mut self, block_id: &BlockId, page: &mut Page) -> std::io::Result<()> {
         let offset = (block_id.block_num() * PAGE_SIZE) as u64;
         self.db_file.seek(SeekFrom::Start(offset))?;
-        self.db_file.read_exact(&mut page.data)?;
+        self.db_file.read(&mut page.data)?;
         Ok(())
     }
 
