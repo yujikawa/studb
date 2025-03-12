@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use super::block::BlockId;
 use super::file_manager::FileManager;
 use super::page::Page;
-use std::collections::HashMap;
+
+const MAX_BUFFERS: usize = 3; // シンプルな制限
 
 pub struct BufferManager {
     file_manager: FileManager,
@@ -20,6 +22,9 @@ impl BufferManager {
 
     pub fn pin_page(&mut self, block_id: &BlockId) -> std::io::Result<&Page> {
         if !self.cache.contains_key(block_id) {
+            if self.cache.len() >= MAX_BUFFERS {
+                self.evict_page();
+            }
             let mut page = Page::new();
             self.file_manager.read_block(block_id, &mut page)?;
             self.cache.insert(block_id.clone(), page);
@@ -40,9 +45,20 @@ impl BufferManager {
     }
 
     pub fn is_pinned(&self, block_id: &BlockId) -> bool {
-        self.pinned_blocks
-            .get(block_id)
-            .map_or(false, |&count| count > 0)
+        self.pinned_blocks.get(block_id).map_or(false, |&count| count > 0)
+    }
+
+    fn evict_page(&mut self) {
+        let mut evicted = None;
+        for block_id in self.cache.keys() {
+            if !self.is_pinned(block_id) {
+                evicted = Some(block_id.clone());
+                break;
+            }
+        }
+        if let Some(block_id) = evicted {
+            self.cache.remove(&block_id);
+        }
     }
 }
 
